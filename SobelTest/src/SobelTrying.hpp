@@ -335,6 +335,7 @@ inline char** EnchanceImage(char **in1,char **in2)
 		{
 			seg[i][j] = in1[i][j] - in2[i][j];
 
+			//Not sure if this is correct check document
 			if(seg[i][j] == 1)
 				store[i][j] = seg[i][j];
 
