@@ -10,21 +10,13 @@ int main(int argc, char *argv[])
 {
 
 
-	if(argc > 1)
-	{
-		b1 = fillBuffer(argv[1]);
-//		b2 = fillBuffer(argv[2]);
-	}
+	BITMAPINFOHEADER bitmapInfoHeader;
+	unsigned char *bitmapData;
+	bitmapData = LoadBitmapFile(argv[1],&bitmapInfoHeader);
+	PrintHeaderInfo(&bitmapInfoHeader);
 
-	printf("%s",b1);
-	input1 = readInput(b1);
-//	input2 = readInput(b2);
-
-
-	free(input1);
-
-
-
+	//for(int i = 0; i < bitmapInfoHeader.biSizeImage-1;i++)
+	//	printf("%d,",bitmapData[i]);
 
 
 	return 0;
