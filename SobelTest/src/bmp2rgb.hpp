@@ -172,6 +172,19 @@ void PrintHeaderInfo(BITMAPINFOHEADER *bitmapInfoHeader)
 
 }
 
+void PrintRGB(RGBTRIPLE* pixelmap,int imageSize)
+{
+		for(int i = 0; i < imageSize/sizeof(RGBTRIPLE);i++)
+		{
+			RGBTRIPLE pixel = pixelmap[i];
+	//		if(pixel.rgbtBlue > 50) {
+	//			cout<<"break index: "<< i << endl;
+	//			break;
+	//		}
+			printf("[%d] R:%d , B:%d , G:%d\n",i,pixel.rgbtRed,pixel.rgbtBlue,pixel.rgbtGreen);
 
+		}
+
+}
 
 #endif /* BMP2RGB_HPP_ */

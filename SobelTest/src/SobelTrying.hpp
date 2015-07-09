@@ -9,6 +9,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include "bmp2rgb.hpp"
 
 using namespace std;
 
@@ -31,7 +32,7 @@ inline int FindMedian(char **buff)
 {
 
 	/*
-	 * ToDo Need to get the buffer filled with RGB first
+	 * ToDo How to find median with pixels?
 	 *
 	 *
 	 */
