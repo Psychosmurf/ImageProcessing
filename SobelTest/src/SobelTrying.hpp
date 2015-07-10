@@ -177,9 +177,9 @@ inline char** readInput(char *buff)
 inline RGBTRIPLE** DeltaFrameGeneration(RGBTRIPLE** in1, RGBTRIPLE** in2)
 {
 /*
- * After subtracting the two gray scale images we then refine the photo even deeper
- * with DeltaFrameGeneration
- *
+ * Delta Frame generation is two images squashed together after being grayed out.
+ * Any pixel that stands out i.e moves will stand out after this transformation.
+ * Two picures that are identical will be the difference of zero on all RGB
  */
 	RGBTRIPLE **seg;
 	seg = alloc2D(ROWS,COLS);
@@ -381,9 +381,7 @@ inline RGBTRIPLE** ToGrayScale(RGBTRIPLE **rgbmap)
 {
 	double L = 0;
 	RGBTRIPLE **graymap;
-	graymap = (RGBTRIPLE**)malloc(COLS * ROWS* sizeof(RGBTRIPLE));
-	for (int k = 0; k < ROWS; k++)
-		graymap[k] = (RGBTRIPLE*)malloc(COLS * sizeof(RGBTRIPLE));
+	graymap = alloc2D(ROWS,COLS);
 
 	for (int i = 0; i < ROWS; i++)
 	{
@@ -410,7 +408,7 @@ inline RGBTRIPLE** ConvertTo2D(RGBTRIPLE *rgbmap)
 	int px = 0;
 	for (int i = 0; i < ROWS; i++)
 	{
-		for (int j = 0; j < COLS-1; j++)
+		for (int j = 0; j < COLS; j++)
 		{
 
 			//ofs = (j * ROWS) + i;
@@ -425,4 +423,22 @@ inline RGBTRIPLE** ConvertTo2D(RGBTRIPLE *rgbmap)
 	return multi_dim;
 }
 
+inline void sobel_printf(RGBTRIPLE ** rgbmap){
+
+	/*
+	 *  w pamieci MJ
+	 *  karabin pow pw
+	 *
+	 */
+
+	for (int i = 0; i < ROWS; i++)
+	{
+		for (int j = 0; j < COLS; j++)
+		{
+			printf("i-j[%d-%d] R:%d , B:%d , G:%d\n",i,j,rgbmap[i][j].rgbtRed,rgbmap[i][j].rgbtBlue,rgbmap[i][j].rgbtGreen);
+
+		}
+	}
+
+}
 #endif /* SOBLETRYING_HPP_ */
