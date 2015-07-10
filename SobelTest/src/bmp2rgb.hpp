@@ -18,6 +18,7 @@
 
 using namespace std;
 
+
 typedef unsigned short  WORD;
 typedef unsigned int   	DWORD;
 typedef long            LONG;
@@ -91,7 +92,7 @@ RGBTRIPLE *LoadBitmapFile(char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
     }
 
     //read the bitmap info header
-    fread(bitmapInfoHeader, sizeof(BITMAPINFOHEADER),1,filePtr); // small edit. forgot to add the closing bracket at sizeof
+    fread(bitmapInfoHeader, sizeof(BITMAPINFOHEADER),1,filePtr);
 
     //move file point to the begging of bitmap data
     fseek(filePtr, bitmapFileHeader.bOffBits, SEEK_SET);
@@ -188,6 +189,17 @@ void PrintRGB(RGBTRIPLE* pixelmap,int imageSize)
 		}
 
 }
-
+//void Print2D(RGBTRIPLE** pixelmap,int imageSize)
+//{
+//	for (int i = 0; i < ROWS; i++)
+//	{
+//		for (int j = 0; j < COLS; j++)
+//		{
+//			printf("i-j[%d-%d] R:%d , B:%d , G:%d\n",i,j,pixelmap[i][j].rgbtRed,pixelmap[i][j].rgbtBlue,pixelmap[i][j].rgbtGreen);
+//
+//		}
+//	}
+//
+//}
 
 #endif /* BMP2RGB_HPP_ */

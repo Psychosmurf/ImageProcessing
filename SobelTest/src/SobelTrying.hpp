@@ -196,11 +196,20 @@ inline RGBTRIPLE** DeltaFrameGeneration(RGBTRIPLE** in1, RGBTRIPLE** in2)
 			seg[i][j].rgbtGreen = in1[i][j].rgbtGreen - in2[i][j].rgbtGreen;
 			seg[i][j].rgbtBlue = in1[i][j].rgbtBlue - in2[i][j].rgbtBlue;
 
-			if(seg[i][j].rgbtRed > 20 && seg[i][j].rgbtGreen > 20 && seg[i][j].rgbtBlue > 20)
+			if(seg[i][j].rgbtRed > 20 || seg[i][j].rgbtGreen > 20 || seg[i][j].rgbtBlue > 20)
 			{
-				seg1[i][j].rgbtRed = 255;
-				seg1[i][j].rgbtBlue = 255;
-				seg1[i][j].rgbtGreen = 255;
+				/*
+				 * After gray scale conversion on both images we take the difference of the images
+				 * and purify the image of the constants.
+				 *
+				 */
+
+				if(seg[i][j].rgbtRed > 20)
+					seg1[i][j].rgbtRed = 255;
+				if (seg[i][j].rgbtGreen > 20)
+					seg1[i][j].rgbtGreen = 255;
+				if(seg[i][j].rgbtBlue > 20)
+					seg1[i][j].rgbtBlue = 255;
 			}
 			else
 			{
@@ -393,12 +402,10 @@ inline RGBTRIPLE** ToGrayScale(RGBTRIPLE **rgbmap)
 
 inline RGBTRIPLE** ConvertTo2D(RGBTRIPLE *rgbmap)
 {
-	int ofs = 0;
-	RGBTRIPLE temp;
+//	int ofs = 0;
+//	RGBTRIPLE temp;
 	RGBTRIPLE **multi_dim;
-	multi_dim = (RGBTRIPLE**)malloc(ROWS * COLS *sizeof(RGBTRIPLE));
-	for (int k = 0; k < ROWS; k++)
-		multi_dim[k] = (RGBTRIPLE*)malloc(ROWS * sizeof(RGBTRIPLE));
+	multi_dim = alloc2D(ROWS,COLS);
 
 	int px = 0;
 	for (int i = 0; i < ROWS; i++)
@@ -406,7 +413,8 @@ inline RGBTRIPLE** ConvertTo2D(RGBTRIPLE *rgbmap)
 		for (int j = 0; j < COLS-1; j++)
 		{
 
-			ofs = (j * ROWS) + i;
+			//ofs = (j * ROWS) + i;
+
 			multi_dim[i][j].rgbtRed = rgbmap[px].rgbtRed;
 			multi_dim[i][j].rgbtBlue = rgbmap[px].rgbtBlue;
 			multi_dim[i][j].rgbtGreen = rgbmap[px].rgbtGreen;

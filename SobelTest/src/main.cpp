@@ -20,6 +20,7 @@ int main(int argc, char *argv[])
 
 	pixelmap2 = ConvertTo2D(pixelmap);
 	pixelmap2 = ToGrayScale(pixelmap2);
+	pixelmap2 = DeltaFrameGeneration(pixelmap2,pixelmap2);
 
 	for (int i = 0; i < ROWS; i++)
 	{
