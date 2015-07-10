@@ -137,6 +137,9 @@ RGBTRIPLE *LoadBitmapFile(char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
     RGBTRIPLE temp;
     int px = 0;
 
+    //This needs to be investigated I believe there may be a cascading problem here
+    //may be caused from width or length not being divisible by 4
+    //can be fixed with padding
     for (imageIdx = 0;imageIdx < bitmapInfoHeader->biSizeImage;imageIdx+=3)
     {
     	temp.rgbtRed = bitmapImage[imageIdx];

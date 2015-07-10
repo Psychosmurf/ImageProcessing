@@ -13,8 +13,8 @@
 
 using namespace std;
 
-const int ROWS = 180;
-const int COLS = 280;
+const int ROWS = 480;
+const int COLS = 480;
 const int MAX_BUFF = ROWS * COLS;
 
 
@@ -27,6 +27,16 @@ char **input2;	// grayed img2
 char **dfram1;	// delta fram2 gen1
 char **dframe2;	// delta frame gen2
 
+inline RGBTRIPLE** alloc2D(int row,int col)
+{
+	RGBTRIPLE **multi_dim;
+	multi_dim = (RGBTRIPLE**)malloc(col * row *sizeof(RGBTRIPLE));
+	for (int k = 0; k < ROWS; k++)
+		multi_dim[k] = (RGBTRIPLE*)malloc(col * sizeof(RGBTRIPLE));
+
+
+	return multi_dim;
+}
 
 inline int FindMedian(char **buff)
 {
@@ -164,34 +174,41 @@ inline char** readInput(char *buff)
 	return output;
 }
 
-inline char** DeltaFrameGeneration(char** in1, char** in2)
+inline RGBTRIPLE** DeltaFrameGeneration(RGBTRIPLE** in1, RGBTRIPLE** in2)
 {
 /*
  * After subtracting the two gray scale images we then refine the photo even deeper
  * with DeltaFrameGeneration
  *
  */
-	char **seg;
-	seg = (char**)malloc(sizeof(char *) * ROWS);
-	for (int k = 0; k < ROWS; k++)
-		seg[k] = (char*)malloc(sizeof(char) * COLS);
+	RGBTRIPLE **seg;
+	seg = alloc2D(ROWS,COLS);
 
-	char **seg1;
-	seg1 = (char**)malloc(sizeof(char *) * ROWS);
-	for (int k = 0; k < ROWS; k++)
-		seg1[k] = (char*)malloc(sizeof(char) * COLS);
-
+	RGBTRIPLE **seg1;
+	seg1 = alloc2D(ROWS,COLS);
 
 	for (int i = 0; i < ROWS; i++)
 	{
 		for (int j = 0; j < COLS; j++)
 		{
-			seg[i][j] = in1[i][j] - in2[i][j];
+			//double check this shit
+			seg[i][j].rgbtRed = in1[i][j].rgbtRed - in2[i][j].rgbtRed;
+			seg[i][j].rgbtGreen = in1[i][j].rgbtGreen - in2[i][j].rgbtGreen;
+			seg[i][j].rgbtBlue = in1[i][j].rgbtBlue - in2[i][j].rgbtBlue;
 
-			if(seg[i][j] > 20)
-				seg1[i][j] = 255;
+			if(seg[i][j].rgbtRed > 20 && seg[i][j].rgbtGreen > 20 && seg[i][j].rgbtBlue > 20)
+			{
+				seg1[i][j].rgbtRed = 255;
+				seg1[i][j].rgbtBlue = 255;
+				seg1[i][j].rgbtGreen = 255;
+			}
 			else
-				seg1[i][j] = 0;
+			{
+				seg1[i][j].rgbtRed = 0;
+				seg1[i][j].rgbtBlue = 0;
+				seg1[i][j].rgbtGreen = 0;
+
+			}
 
 		}
 	}

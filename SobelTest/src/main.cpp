@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
 	RGBTRIPLE *pixelmap;
 	RGBTRIPLE **pixelmap2;
 	pixelmap = LoadBitmapFile(argv[1],&bitmapInfoHeader);
-	//PrintHeaderInfo(&bitmapInfoHeader);
+	PrintHeaderInfo(&bitmapInfoHeader);
 
 
 	pixelmap2 = ConvertTo2D(pixelmap);
@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 	{
 		for (int j = 0; j < COLS; j++)
 		{
-			printf("[%d] R:%d , B:%d , G:%d\n",i,pixelmap2[i][j].rgbtRed,pixelmap2[i][j].rgbtBlue,pixelmap2[i][j].rgbtGreen);
+			printf("i-j[%d-%d] R:%d , B:%d , G:%d\n",i,j,pixelmap2[i][j].rgbtRed,pixelmap2[i][j].rgbtBlue,pixelmap2[i][j].rgbtGreen);
 
 		}
 	}
