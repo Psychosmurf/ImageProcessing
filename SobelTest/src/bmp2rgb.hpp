@@ -55,13 +55,12 @@ typedef struct tagBITMAPINFOHEADER
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct
+typedef struct tagRGBTRIPLE
 {
     uint8_t  rgbtRed;
     uint8_t  rgbtBlue;
     uint8_t  rgbtGreen;
-}
-RGBTRIPLE;
+}RGBTRIPLE;
 #pragma pack(pop)
 
 RGBTRIPLE *LoadBitmapFile(char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
@@ -186,5 +185,6 @@ void PrintRGB(RGBTRIPLE* pixelmap,int imageSize)
 		}
 
 }
+
 
 #endif /* BMP2RGB_HPP_ */

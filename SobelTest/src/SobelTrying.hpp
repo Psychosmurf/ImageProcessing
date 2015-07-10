@@ -351,6 +351,53 @@ inline char** EnchanceImage(char **in1,char **in2)
 
 }
 
+inline RGBTRIPLE** ToGrayScale(RGBTRIPLE **rgbmap)
+{
+	double L = 0;
+	RGBTRIPLE **graymap;
+	graymap = (RGBTRIPLE**)malloc(COLS * ROWS* sizeof(RGBTRIPLE));
+	for (int k = 0; k < ROWS; k++)
+		graymap[k] = (RGBTRIPLE*)malloc(COLS * sizeof(RGBTRIPLE));
 
+	for (int i = 0; i < ROWS; i++)
+	{
+		for (int j = 0; j < COLS; j++)
+		{
+
+			L = 0.2126 * rgbmap[i][j].rgbtRed + 0.7152 * rgbmap[i][j].rgbtGreen + 0.0722 * rgbmap[i][j].rgbtBlue;
+
+			graymap[i][j].rgbtRed = (unsigned char)(L+0.5);
+			graymap[i][j].rgbtGreen = (unsigned char)(L+0.5);
+			graymap[i][j].rgbtBlue = (unsigned char)(L+0.5);
+		}
+	}
+	return graymap;
+}
+
+inline RGBTRIPLE** ConvertTo2D(RGBTRIPLE *rgbmap)
+{
+	int ofs = 0;
+	RGBTRIPLE temp;
+	RGBTRIPLE **multi_dim;
+	multi_dim = (RGBTRIPLE**)malloc(ROWS * COLS *sizeof(RGBTRIPLE));
+	for (int k = 0; k < ROWS; k++)
+		multi_dim[k] = (RGBTRIPLE*)malloc(ROWS * sizeof(RGBTRIPLE));
+
+	int px = 0;
+	for (int i = 0; i < ROWS; i++)
+	{
+		for (int j = 0; j < COLS-1; j++)
+		{
+
+			ofs = (j * ROWS) + i;
+			multi_dim[i][j].rgbtRed = rgbmap[px].rgbtRed;
+			multi_dim[i][j].rgbtBlue = rgbmap[px].rgbtBlue;
+			multi_dim[i][j].rgbtGreen = rgbmap[px].rgbtGreen;
+			//printf("i-j[%d-%d] ,ofs[%d] R:%d , B:%d , G:%d\n",i,j,ofs,multi_dim[i][j].rgbtRed,multi_dim[i][j].rgbtBlue,multi_dim[i][j].rgbtGreen);
+			px++;
+		}
+	}
+	return multi_dim;
+}
 
 #endif /* SOBLETRYING_HPP_ */
