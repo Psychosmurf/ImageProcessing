@@ -13,8 +13,8 @@
 
 using namespace std;
 
-const int ROWS = 480;
-const int COLS = 480;
+int ROWS = 0;
+int COLS = 0;
 const int MAX_BUFF = ROWS * COLS;
 
 
@@ -27,62 +27,26 @@ char **input2;	// grayed img2
 char **dfram1;	// delta fram2 gen1
 char **dframe2;	// delta frame gen2
 
+
+
+void setDimensions(BITMAPINFOHEADER *bitmapInfoHeader)
+{
+
+	ROWS = bitmapInfoHeader->biWidth;
+	COLS = bitmapInfoHeader->biHeight;
+}
+
 inline RGBTRIPLE** alloc2D(int row,int col)
 {
 	RGBTRIPLE **multi_dim;
 	multi_dim = (RGBTRIPLE**)malloc(col * row *sizeof(RGBTRIPLE));
-	for (int k = 0; k < ROWS; k++)
-		multi_dim[k] = (RGBTRIPLE*)malloc(col * sizeof(RGBTRIPLE));
+	for (int k = 0; k < row; k++)
+		multi_dim[k] = (RGBTRIPLE*)malloc(row * sizeof(RGBTRIPLE));
 
 
 	return multi_dim;
 }
 
-inline int FindMedian(char **buff)
-{
-
-	/*
-	 * ToDo How to find median with pixels?
-	 *
-	 *
-	 */
-
-	char tmp = 0;
-	int cp  = 0;
-	int count = 0;
-	char ch = 0;
-
-	char* tbuff;
-	tbuff = (char*)malloc(sizeof(char) * MAX_BUFF);
-
-	//move from 2d array into single buffers
-	for (int i = 0; i < ROWS; i++)
-	{
-		for (int j = 0; j < COLS; j++)
-		{
-			tbuff[cp] = buff[ROWS][COLS];
-			cp++;
-
-		}
-	}
-
-	//ascending order sorting
-	for(int i = 0; i < MAX_BUFF; i++)
-	{
-		for(int j = 0; j < MAX_BUFF - i; j++)
-		{
-			if(tbuff[j] > tbuff[j+1])
-			{
-				tmp = tbuff[j];
-				tbuff[j] = tbuff[j+1];
-				tbuff[j+1] = tmp;
-			}
-		}
-	}
-
-	//do not use until rgb buf is created
-	return 0;
-}
 
 inline char* fillBuffer(string inFileName)
 {
@@ -229,31 +193,35 @@ inline RGBTRIPLE** DeltaFrameGeneration(RGBTRIPLE** in1, RGBTRIPLE** in2)
 		}
 	}
 
+	/*
+	 * swap ack later
+	 */
+
 	free(seg);
 	return seg1;
 }
 
 inline char **MedianFilter(char **seg)
 {
-
-	int bbr = 0;
-	char **firstfilter;
-	firstfilter = (char**)malloc(sizeof(char *) * ROWS);
-	for (int k = 0; k < ROWS; k++)
-		firstfilter[k] = (char*)malloc(sizeof(char) * COLS);
-
-	for (int i = 0; i < ROWS; i++)
-	{
-		for (int j = 0; j < COLS; j++)
-		{
-			if( i != 0 || j != 0 || i != ROWS || j != COLS )
-				bbr = FindMedian(seg);
-			firstfilter[i][j] = bbr;
-		}
-	}
-
-	free(seg);
-	return firstfilter;
+//
+//	int bbr = 0;
+//	char **firstfilter;
+//	firstfilter = (char**)malloc(sizeof(char *) * ROWS);
+//	for (int k = 0; k < ROWS; k++)
+//		firstfilter[k] = (char*)malloc(sizeof(char) * COLS);
+//
+//	for (int i = 0; i < ROWS; i++)
+//	{
+//		for (int j = 0; j < COLS; j++)
+//		{
+//			if( i != 0 || j != 0 || i != ROWS || j != COLS )
+//				bbr = FindMedian(seg);
+//			firstfilter[i][j] = bbr;
+//		}
+//	}
+//
+//	free(seg);
+//	return firstfilter;
 
 }
 
@@ -447,4 +415,83 @@ inline void sobel_printf(RGBTRIPLE ** rgbmap){
 	}
 
 }
+
+inline void FindMedian(RGBTRIPLE *buff)
+{
+
+	/*
+	 * ToDo How to find median with pixels?
+	 *
+	 *
+	 */
+
+	char tmp = 0;
+	int cp  = 0;
+	int count = -1;
+	char ch = 0;
+	int ofs = 0;
+
+	RGBTRIPLE** frame;
+	RGBTRIPLE* middle_pixel;
+	RGBTRIPLE* pntr;
+
+
+	RGBTRIPLE* tbuff;
+	tbuff = (RGBTRIPLE*)malloc(sizeof(RGBTRIPLE) * 8);
+
+	pntr = buff;
+
+
+	for(int index = 0; index < 9; index+=3)
+	{
+
+		tbuff[index] = pntr[count++];
+		tbuff[index+1] = pntr[count++];
+		tbuff[index+2] = pntr[count++];
+
+		cout << (unsigned int)tbuff[index].rgbtRed << endl;
+		cout << (unsigned int)tbuff[index+1].rgbtRed << endl;
+		cout << (unsigned int)tbuff[index+2].rgbtRed << endl;
+		cout<<"counter: "<< count <<endl;
+
+		pntr = &buff[ROWS-2];
+		count = -1;
+
+
+	}
+
+
+	cout<<"sizeof tbuff: "<< sizeof(tbuff) << endl;
+	for(int i = 0; i < 10;i++)
+		printf("[%d] R:%d , G:%d , B:%d\n",i,tbuff[i].rgbtRed,tbuff[i].rgbtGreen,tbuff[i].rgbtBlue);
+
+
+
+	middle_pixel = &tbuff[5];
+
+	//ascending order sorting
+//	for(int i = 0; i < 3; i++)
+//	{
+//		for(int j = 0; j < 3 - i; j++)
+//		{
+//			if(tbuff[j] > tbuff[j+1])
+//			{
+//				tmp = tbuff[j];
+//				tbuff[j] = tbuff[j+1];
+//				tbuff[j+1] = tmp;
+//			}
+//		}
+//	}
+
+	middle_pixel->rgbtRed = (tbuff[4].rgbtRed + tbuff[5].rgbtRed)/2;
+	middle_pixel->rgbtGreen = (tbuff[4].rgbtGreen + tbuff[5].rgbtGreen)/2;
+	middle_pixel->rgbtBlue = (tbuff[4].rgbtBlue + tbuff[5].rgbtBlue)/2;
+
+
+
+	free(tbuff);
+
+	//return middle_pixel;
+}
+
 #endif /* SOBLETRYING_HPP_ */
