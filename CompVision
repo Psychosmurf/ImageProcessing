@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 #include <cmath>
+#include <sstream>
 
 using namespace cimg_library;
 using namespace std;
@@ -19,14 +20,14 @@ struct BW
     float BW;
 };
 
-//loads pixel data from a file to the pixData vector
-void loadPixData(string& inFileName, vector< vector<RGB> >& pixData)
+inline vector< vector<RGB> > loadPixData(string& fileName)
 {
-    CImg<float> img(inFileName.c_str());
+    CImg<float> img(fileName.c_str());
 
-    int imgWidth  = img.width();
+    int imgWidth  = img.width ();
     int imgHeight = img.height();
 
+    vector< vector<RGB> > pixData;
     pixData.resize(imgWidth, vector<RGB>(imgHeight));
 
     for (int i = 0; i < imgWidth; i++)
@@ -38,113 +39,105 @@ void loadPixData(string& inFileName, vector< vector<RGB> >& pixData)
             pixData[i][j].B = img(i, j, 0, 2);
         }
     }
+
+    return pixData;
 }
 
-//grayscales pixDataIn, stores the data into pixDataOut, then clears pixDataIn
-void grayScale(vector< vector<RGB> >& pixDataIn, vector< vector<BW> >& pixDataOut)
+inline vector< vector<BW> > grayScale(vector< vector<RGB> >& pixData)
 {
-    for (int i = 0; i < pixDataIn.size(); i++)
-    {
-        for (int j = 0; j < pixDataIn[0].size(); j++)
-        {
-            float Y = pixDataIn[i][j].R*0.2126 + pixDataIn[i][j].G*0.7152 + pixDataIn[i][j].B*0.0722;
+    vector< vector<BW> > outData;
 
-            pixDataIn[i][j].R = Y;
-            pixDataIn[i][j].G = Y;
-            pixDataIn[i][j].B = Y;
+    int imgWidth  = pixData.size();
+    int imgHeight = pixData[0].size();
+
+    outData.resize(imgWidth, vector<BW>(imgHeight));
+
+    for (int i = 0; i < imgWidth; i++)
+    {
+        for (int j = 0; j < imgHeight; j++)
+        {
+            float Y = pixData[i][j].R*0.2126 + pixData[i][j].G*0.7152 + pixData[i][j].B*0.0722;
+
+            outData[i][j].BW = Y;
         }
     }
 
-    pixDataOut.resize(pixDataIn.size(), vector<BW>(pixDataIn[0].size()));
+    return outData;
+}
 
-    for (int i = 0; i < pixDataIn.size(); i++)
+inline vector< vector<BW> > calcDeltaFrame(vector< vector<BW> >& frame1, vector< vector<BW> >& frame2)
+{
+    int imgWidth  = frame1.size();
+    int imgHeight = frame1[0].size();
+
+    vector< vector<BW> > delFrame;
+    delFrame.resize(imgWidth, vector<BW>(imgHeight));
+
+    for (int i = 0; i < imgWidth; i++)
     {
-        for (int j = 0; j < pixDataIn[0].size(); j++)
+        for (int j = 0; j < imgHeight; j++)
         {
-            pixDataOut[i][j].BW = pixDataIn[i][j].R;
+            delFrame[i][j].BW = abs(frame1[i][j].BW - frame2[i][j].BW);
         }
     }
 
-    pixDataIn.clear();
+    return delFrame;
 }
 
-//calculates the delta frame and stores it into the second argument
-void deltaFrame(vector< vector<BW> >& objFrame, vector< vector<BW> >& delFrame)
+inline vector< vector<BW> > deltaThresh(vector< vector<BW> >& inFrame)
 {
-    for (int i = 0; i < objFrame.size(); i++)
-    {
-        for (int j = 0; j < objFrame[0].size(); j++)
-        {
-            delFrame[i][j].BW = abs(objFrame[i][j].BW - delFrame[i][j].BW);
-        }
-    }
-}
+    int   imgWidth  = inFrame.size();
+    int   imgHeight = inFrame[0].size();
 
-//applies adaptive threshold algorithm to delta frame
-void deltaThresh(vector< vector<BW> >& delFrame)
-{
-    int threshold    = rand() % 256;
-    float sumObjPix  = 0;
-    int numObjPix    = 0;
-    float sumBacPix  = 0;
-    int numBacPix    = 0;
-    float meanObjPix = 0;
-    float meanBacPix = 0;
+    vector< vector<BW> > outFrame;
+    outFrame.resize(imgWidth, vector<BW>(imgHeight));
 
-    for (int i = 0; i < delFrame.size(); i++)
+    float maxVal    = 0;
+
+    for (int i = 0; i < imgWidth; i++)
     {
-        for (int j = 0; j < delFrame[0].size(); j++)
+        for (int j = 0; j < imgHeight; j++)
         {
-            if (delFrame[i][j].BW > threshold)
+            if (inFrame[i][j].BW > maxVal)
             {
-                sumObjPix = sumObjPix + delFrame[i][j].BW;
-                numObjPix = numObjPix + 1;
+                maxVal = inFrame[i][j].BW;
+            }
+        }
+    }
+
+    for (int i = 0; i < imgWidth; i++)
+    {
+        for (int j = 0; j < imgHeight; j++)
+        {
+            if (inFrame[i][j].BW > maxVal/2)
+            {
+                outFrame[i][j].BW = 255;
             }
             else
             {
-                sumBacPix = sumBacPix + delFrame[i][j].BW;
-                numBacPix = numBacPix + 1;
+                outFrame[i][j].BW = 0;
             }
         }
     }
 
-    meanObjPix = sumObjPix/numObjPix;
-    meanBacPix = sumBacPix/numBacPix;
-
-    threshold = (meanObjPix + meanBacPix)/2;
-
-    for (int i = 0; i < delFrame.size(); i++)
-    {
-        for (int j = 0; j < delFrame[0].size(); j++)
-        {
-            if (delFrame[i][j].BW > threshold)
-            {
-                delFrame[i][j].BW = 255;
-            }
-            else
-            {
-                delFrame[i][j].BW = 0;
-            }
-        }
-    }
+    return outFrame;
 }
 
-//calculates the median of the neighborhood of pixel i, j
-float median(vector< vector<BW> >& buff, int i, int j)
+float median(vector< vector<BW> >& inFrame, int& i, int& j)
 {
     float med;
 
     vector<float> values;
     values.resize(8);
 
-    values[0] = buff[i - 1][j - 1].BW;
-    values[1] = buff[i][j - 1].BW;
-    values[2] = buff[i + 1][j].BW;
-    values[3] = buff[i - 1][j].BW;
-    values[4] = buff[i + 1][j].BW;
-    values[5] = buff[i - 1][j + 1].BW;
-    values[6] = buff[i][j + 1].BW;
-    values[7] = buff[i + 1][j + 1].BW;
+    values[0] = inFrame[i - 1][j - 1].BW;
+    values[1] = inFrame[i][j - 1].BW;
+    values[2] = inFrame[i + 1][j].BW;
+    values[3] = inFrame[i - 1][j].BW;
+    values[4] = inFrame[i + 1][j].BW;
+    values[5] = inFrame[i - 1][j + 1].BW;
+    values[6] = inFrame[i][j + 1].BW;
+    values[7] = inFrame[i + 1][j + 1].BW;
 
     std::sort(values.begin(), values.end());
 
@@ -153,47 +146,45 @@ float median(vector< vector<BW> >& buff, int i, int j)
     return med;
 }
 
-//applies median filter to the image
-void medianFilter(vector< vector<BW> >& delFrame)
+inline vector< vector<BW> > medianFilter(vector< vector<BW> >& inFrame)
 {
-    vector< vector<BW> > temp;
-    temp.resize(delFrame.size(), vector<BW>(delFrame[0].size()));
+    int imgWidth  = inFrame.size();
+    int imgHeight = inFrame[0].size();
 
-    for (int i = 0; i < delFrame.size(); i++)
+    vector< vector<BW> > outFrame;
+    outFrame.resize(imgWidth, vector<BW>(imgHeight));
+
+    for (int i = 0; i < imgWidth; i++)
     {
-        for (int j = 0; j < delFrame[0].size(); j++)
+        for (int j = 0; j < imgHeight; j++)
         {
-            if (i > 0 &&
-                i < (delFrame.size() - 1) &&
-                j > 0 &&
-                j < (delFrame[0].size() - 1))
+            if (   i > 0
+                && i < (imgWidth - 1)
+                && j > 0
+                && j < (imgHeight - 1))
             {
-                temp[i][j].BW = median(delFrame, i, j);
-
+                outFrame[i][j].BW = median(inFrame, i, j);
             }
             else
             {
-                temp[i][j].BW = delFrame[i][j].BW;
+                outFrame[i][j].BW = inFrame[i][j].BW;
             }
         }
     }
 
-    for (int i = 0; i < delFrame.size(); i++)
-    {
-        for (int j = 0; j < delFrame[0].size(); j++)
-        {
-            delFrame[i][j].BW = temp[i][j].BW;
-        }
-    }
+    return outFrame;
 }
-//creates a picture in a window from the RGB pixel data in the input vector
+
 void displayRGB(vector< vector<RGB> >& pixData)
 {
-    CImg<float> outputImg(pixData.size(), pixData[0].size(), 1, 3);
+    int imgWidth  = pixData.size();
+    int imgHeight = pixData[0].size();
 
-    for (int i = 0; i < pixData.size(); i++)
+    CImg<float> outputImg(imgWidth, imgHeight, 1, 3);
+
+    for (int i = 0; i < imgWidth; i++)
     {
-        for (int j = 0; j < pixData[0].size(); j++)
+        for (int j = 0; j < imgHeight; j++)
         {
             outputImg(i, j, 0, 0) = pixData[i][j].R;
             outputImg(i, j, 0, 1) = pixData[i][j].G;
@@ -204,14 +195,16 @@ void displayRGB(vector< vector<RGB> >& pixData)
     outputImg.display("image");
 }
 
-//creates a picture in a window from the BW pixel data in the input vector
 void displayBW(vector< vector<BW> >& pixData)
 {
-    CImg<float> outputImg(pixData.size(), pixData[0].size(), 1, 1);
+    int imgWidth  = pixData.size();
+    int imgHeight = pixData[0].size();
 
-    for (int i = 0; i < pixData.size(); i++)
+    CImg<float> outputImg(imgWidth, imgHeight, 1, 1);
+
+    for (int i = 0; i < imgWidth; i++)
     {
-        for (int j = 0; j < pixData[0].size(); j++)
+        for (int j = 0; j < imgHeight; j++)
         {
             outputImg(i, j, 0, 0) = pixData[i][j].BW;
         }
@@ -222,46 +215,42 @@ void displayBW(vector< vector<BW> >& pixData)
 
 int main()
 {
-    //pixDataRGB1 is the background frame
-    //we don't have to keep it.
-    vector< vector<RGB> > pixDataRGB1;
-    vector< vector<BW>  > pixDataBW1;
+    //these vectors will contain the pixel data of the background frame
+    vector< vector<RGB> > backFrameRGB;
+    vector< vector<BW>  > backFrameBW;
 
-    //pixDataRGB2 is the object frame
-    //we will have to keep it for later.
-    vector< vector<RGB> > pixDataRGB2;
-    vector< vector<BW>  > pixDataBW2;
+    string inFileName = "C:\\Users\\Nikola\\Desktop\\solebTest\\back.bmp";
 
-    string inFileName = "C:\\Users\\Nikola\\Desktop\\solebTest\\testimage.bmp";
+    backFrameRGB = loadPixData(inFileName);
+    backFrameBW  = grayScale(backFrameRGB);
 
-    loadPixData(inFileName, pixDataRGB1);
+    displayRGB(backFrameRGB);
+    displayBW (backFrameBW);
 
-    inFileName = "C:\\Users\\Nikola\\Desktop\\solebTest\\testimage2.bmp";
+    backFrameRGB.clear();
 
-    loadPixData(inFileName, pixDataRGB2);
+    for (int i = 2; i < 10; i++)
+    {
+        vector< vector<RGB> > frameRGB;
+        vector< vector<BW>  > frameBW;
 
-    displayRGB(pixDataRGB1);
-    displayRGB(pixDataRGB2);
+        vector< vector<BW>  > delFrame;
 
-    grayScale(pixDataRGB1, pixDataBW1);
-    grayScale(pixDataRGB2, pixDataBW2);
+        stringstream _i;
 
-    displayBW(pixDataBW1);
-    displayBW(pixDataBW2);
+        _i << i;
 
-    //pixDataBW1 will hold the delta frame as we don't need it anymore
-    //pixDataBW2 will hold the object frame, we will need it later
-    deltaFrame(pixDataBW2, pixDataBW1);
+        inFileName = "C:\\Users\\Nikola\\Desktop\\solebTest\\scene000" + _i.str() + "1.bmp";
 
-    displayBW(pixDataBW1);
+        frameRGB = loadPixData(inFileName);
+        frameBW  = grayScale  (frameRGB);
 
-    deltaThresh(pixDataBW1);
+        delFrame = calcDeltaFrame(backFrameBW, frameBW);
+        delFrame = deltaThresh   (delFrame);
+        delFrame = medianFilter  (delFrame);
 
-    displayBW(pixDataBW1);
-
-    medianFilter(pixDataBW1);
-
-    displayBW(pixDataBW1);
+        displayBW(delFrame);
+    }
 
     return 0;
 }
