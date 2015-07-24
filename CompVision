@@ -224,9 +224,6 @@ int main()
     backFrameRGB = loadPixData(inFileName);
     backFrameBW  = grayScale(backFrameRGB);
 
-    displayRGB(backFrameRGB);
-    displayBW (backFrameBW);
-
     backFrameRGB.clear();
 
     for (int i = 2; i < 10; i++)
