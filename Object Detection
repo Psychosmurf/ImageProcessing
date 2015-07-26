@@ -16,7 +16,7 @@ struct BGR
     float R;
 };
 
-inline vector< vector<BGR> > grayScale(vector< vector<BGR> > input)
+inline vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
 {
     int rows = input.size();
     int cols = input[0].size();
@@ -45,7 +45,7 @@ inline vector< vector<BGR> > grayScale(vector< vector<BGR> > input)
 //sums the absolute difference of each pixel with the values of its neighbors
 //then assigns that sum to the central pixel.
 //the effect of this is to segment objects and background.
-inline vector< vector<BGR> > autoCorr(vector< vector<BGR> > input)
+inline vector< vector<BGR> > autoCorr(vector< vector<BGR> >& input)
 {
     int rows = input.size();
     int cols = input[0].size();
