@@ -1,0 +1,143 @@
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+using namespace cv;
+using namespace std;
+
+struct BGR
+{
+    float B;
+    float G;
+    float R;
+};
+
+inline vector< vector<BGR> > grayScale(vector< vector<BGR> > input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            BGR pixel;
+
+            pixel.B = input[i][j].R*0.2126 + input[i][j].G*0.7152 + input[i][j].B*0.0722;
+            pixel.G = pixel.B;
+            pixel.R = pixel.B;
+
+            output[i][j] = pixel;
+        }
+    }
+
+    return output;
+}
+
+//auto correlation surface generation
+//sums the absolute difference of each pixel with the values of its neighbors
+//then assigns that sum to the central pixel.
+//the effect of this is to segment objects and background.
+inline vector< vector<BGR> > autoCorr(vector< vector<BGR> > input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    float sum;
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            sum = 0;
+
+            for (int k = -1; k <= 1; k++)
+            {
+                for (int m = -1; m <= 1; m++)
+                {
+                    if (!((k == 0) && (m == 0)))
+                    {
+                        sum = sum + abs(input[i + k][j + m].B - input[i][j].B);
+                    }
+                }
+            }
+
+            sum = sum/2040.0*512.0; //normalization, not sure why these numbers work yet they just do
+
+            output[i][j].B = sum;
+            output[i][j].G = sum;
+            output[i][j].R = sum;
+        }
+    }
+
+    return output;
+}
+
+int main()
+{
+    namedWindow("input" , CV_WINDOW_NORMAL);
+    namedWindow("output", CV_WINDOW_NORMAL);
+
+    string       inFileName = "test0.flv";
+    VideoCapture inVideo    = VideoCapture(inFileName.c_str());
+
+    Mat frame;
+
+    while(1)
+    {
+        inVideo >> frame;
+
+        imshow("input" , frame);
+
+        vector< vector<BGR> > inVec;
+        inVec.resize(frame.rows, vector<BGR>(frame.cols));
+
+        for (int i = 0; i < frame.rows; i++)
+        {
+            for (int j = 0; j < frame.cols; j++)
+            {
+                BGR pixel;
+
+                pixel.B = frame.data[frame.step[0]*i + frame.step[1]*j + 0];
+                pixel.G = frame.data[frame.step[0]*i + frame.step[1]*j + 1];
+                pixel.R = frame.data[frame.step[0]*i + frame.step[1]*j + 2];
+
+                inVec[i][j] = pixel;
+            }
+        }
+
+        inVec = grayScale(inVec);
+        inVec = autoCorr (inVec);
+
+        for (int i = 0; i < frame.rows; i++)
+        {
+            for (int j = 0; j < frame.cols; j++)
+            {
+                BGR pixel2 = inVec[i][j];
+
+                frame.data[frame.step[0]*i + frame.step[1]*j + 0] = pixel2.B;
+                frame.data[frame.step[0]*i + frame.step[1]*j + 1] = pixel2.G;
+                frame.data[frame.step[0]*i + frame.step[1]*j + 2] = pixel2.R;
+            }
+        }
+
+        inVec.clear();
+
+        imshow("output", frame);
+
+        char c = cvWaitKey(33);
+        if (c == 27) break;
+    }
+
+    return 0;
+}
