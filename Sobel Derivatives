@@ -1,0 +1,236 @@
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+using namespace cv;
+using namespace std;
+
+struct BGR
+{
+    float B;
+    float G;
+    float R;
+};
+
+inline vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            BGR pixel;
+
+            pixel.B = input[i][j].R*0.2126 + input[i][j].G*0.7152 + input[i][j].B*0.0722;
+            pixel.G = pixel.B;
+            pixel.R = pixel.B;
+
+            output[i][j] = pixel;
+        }
+    }
+
+    return output;
+}
+
+//calculates the x-derivative by convolution with the horizontal kernel [1, 0 , -1]
+inline vector< vector<BGR> > deriv_x(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            output[i][j].B = (-input[i][j - 1].B + input[i][j + 1].B + 255)/2.0; //convolution with normalization.
+            output[i][j].G = output[i][j].B;
+            output[i][j].R = output[i][j].B;
+        }
+    }
+
+    return output;
+}
+
+//calculates the y-derivative by convolution with the vertical kernel [1, 0 , -1]
+inline vector< vector<BGR> > deriv_y(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            output[i][j].B = (-input[i + 1][j].B + input[i - 1][j].B + 255)/2.0; //convolution with normalization.
+            output[i][j].G = output[i][j].B;
+            output[i][j].R = output[i][j].B;
+        }
+    }
+
+    return output;
+}
+
+//averages for the x-direction by convolution with the vertical kernel [1, 2, 1]
+inline vector< vector<BGR> > avg_x(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            output[i][j].B = (input[i - 1][j].B + 2*input[i][j].B + input[i + 1][j].B)/1000.0*255.0; //convolution with normalization
+            output[i][j].G = output[i][j].B;
+            output[i][j].R = output[i][j].B;
+        }
+    }
+
+    return output;
+}
+
+//averages for the y-direction by convolution with the horizontal kernel [1, 2, 1]
+inline vector< vector<BGR> > avg_y(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            output[i][j].B = (input[i][j - 1].B + 2*input[i][j].B + input[i][j - 1].B)/1000.0*255.0;
+            output[i][j].G = output[i][j].B;
+            output[i][j].R = output[i][j].B;
+        }
+    }
+
+    return output;
+}
+
+//calculates the sobel x-derivative
+inline vector< vector<BGR> > G_x(vector< vector<BGR> >& input)
+{
+    vector< vector<BGR> > output;
+
+    output = deriv_x(input);
+    output = avg_x  (output);
+
+    return output;
+}
+
+//calculates the sobel y-derivative
+inline vector< vector<BGR> > G_y(vector< vector<BGR> >& input)
+{
+    vector< vector<BGR> > output;
+
+    output = deriv_y(input);
+    output = avg_y  (output);
+
+    return output;
+}
+
+//calculates the sobel operator
+inline vector< vector<BGR> > sobelOp(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > input_x = G_x(input);
+    vector< vector<BGR> > input_y = G_y(input);
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            output[i][j].B = abs(pow(pow(input_x[i][j].B,2) + pow(input_y[i][j].B,2),0.5)/360.62*255.0 - 255.0/2)*2;
+            output[i][j].G = output[i][j].B;
+            output[i][j].R = output[i][j].B;
+        }
+    }
+
+    return output;
+}
+
+int main()
+{
+    namedWindow("input" , CV_WINDOW_NORMAL);
+    namedWindow("output", CV_WINDOW_NORMAL);
+
+    string       inFileName = "test0.flv";
+    VideoCapture inVideo    = VideoCapture(inFileName.c_str());
+
+    Mat frame;
+
+    while(1)
+    {
+        inVideo >> frame;
+
+        imshow("input" , frame);
+
+        vector< vector<BGR> > inVec;
+        inVec.resize(frame.rows, vector<BGR>(frame.cols));
+
+        for (int i = 0; i < frame.rows; i++)
+        {
+            for (int j = 0; j < frame.cols; j++)
+            {
+                BGR pixel;
+
+                pixel.B = frame.data[frame.step[0]*i + frame.step[1]*j + 0];
+                pixel.G = frame.data[frame.step[0]*i + frame.step[1]*j + 1];
+                pixel.R = frame.data[frame.step[0]*i + frame.step[1]*j + 2];
+
+                inVec[i][j] = pixel;
+            }
+        }
+
+        inVec = grayScale(inVec);
+        inVec = sobelOp  (inVec);
+
+        for (int i = 0; i < frame.rows; i++)
+        {
+            for (int j = 0; j < frame.cols; j++)
+            {
+                BGR pixel2 = inVec[i][j];
+
+                frame.data[frame.step[0]*i + frame.step[1]*j + 0] = pixel2.B;
+                frame.data[frame.step[0]*i + frame.step[1]*j + 1] = pixel2.G;
+                frame.data[frame.step[0]*i + frame.step[1]*j + 2] = pixel2.R;
+            }
+        }
+
+        inVec.clear();
+
+        imshow("output", frame);
+
+        char c = cvWaitKey(33);
+        if (c == 27) break;
+    }
+
+    return 0;
+}
