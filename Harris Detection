@@ -1,0 +1,231 @@
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+using namespace cv;
+using namespace std;
+
+struct BGR
+{
+    float B;
+    float G;
+    float R;
+};
+
+inline vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<BGR> > output;
+    output.resize(rows, vector<BGR>(cols));
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            BGR pixel;
+
+            pixel.B = input[i][j].R*0.2126 + input[i][j].G*0.7152 + input[i][j].B*0.0722;
+            pixel.G = pixel.B;
+            pixel.R = pixel.B;
+
+            output[i][j] = pixel;
+        }
+    }
+
+    return output;
+}
+
+inline vector< vector<BGR> > response(vector< vector<BGR> >& inFrame)
+{
+    int rows = inFrame.size();
+    int cols = inFrame[0].size();
+
+    vector< vector<BGR> > outFrame;
+    outFrame.resize(rows, vector<BGR>(cols));
+
+    // The first step is to convolve with the horizontal derivative kernel [1, 0 , -1].
+    // What this means is that we have a 1x3 mask, and then multiply the pixel values under it
+    // with the entry.
+    // We store the results of this step into their own vector, because these values will have to be reused
+    // in later steps, and we would rather not have to re-calculate them.
+
+    vector< vector<BGR> > x_deriv;
+    x_deriv.resize(rows, vector<BGR>(cols));
+
+    vector< vector<BGR> > y_deriv;
+    y_deriv.resize(rows, vector<BGR>(cols));
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            x_deriv[i][j].B = inFrame[i][j - 1].B - inFrame[i][j + 1].B;
+        }
+    }
+
+    // We do the same for the y-derivatives by convolution with the vertical kernel [1, 0, -1].
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            y_deriv[i][j].B = -inFrame[i + 1][j].B + inFrame[i - 1][j].B;
+        }
+    }
+
+    // The next step is to convolve the results of the previous steps with the scharr kernel [3, 10, 3],
+    // (vertical for x and horizontal for y). This results in the x and y- sobel derivatives.
+
+    vector< vector<BGR> > sobel_x;
+    sobel_x = x_deriv;
+
+    vector< vector<BGR> > sobel_y;
+    sobel_y = y_deriv;
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            sobel_x[i][j].B = 3*x_deriv[i - 1][j].B + 10*x_deriv[i][j].B + 3*x_deriv[i + 1][j].B;
+            sobel_y[i][j].B = 3*y_deriv[i][j - 1].B + 10*y_deriv[i][j].B + 3*y_deriv[i][j + 1].B;
+        }
+    }
+
+    double maxPixel = 0;
+    int max_i = 0;
+    int max_j = 0;
+
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            // Now for each pixel, we calculate the four terms of the structure tensor,
+            // [G_x^2, G_x*G_y; G_x*G_y, G_y^2] by summing the squares of the derivatives
+            // over the mask.
+
+            double G_x_2_Sum = 0;
+            double G_y_2_Sum = 0;
+            double G_x_y_Sum = 0;
+
+            for (int k = -1; k <= 1; k++)
+            {
+                for (int m = -1; m <=1 ; m++)
+                {
+                    G_x_2_Sum = G_x_2_Sum + sobel_x[i + k][j + m].B*sobel_x[i + k][j + m].B;
+                    G_y_2_Sum = G_y_2_Sum + sobel_y[i + k][j + m].B*sobel_y[i + k][j + m].B;
+                    G_x_y_Sum = G_x_y_Sum + sobel_x[i + k][j + m].B*sobel_y[i + k][j + m].B;
+                }
+            }
+
+            // We now calculate the determinant of this matrix, and its trace, then divide the two
+            // numbers to get the response value.
+
+            double det_A = G_x_2_Sum*G_y_2_Sum - G_x_y_Sum*G_x_y_Sum;
+            double tr_A  = G_x_2_Sum + G_y_2_Sum;
+
+            // the response value goes into the outFrame
+
+            if ( tr_A != 0)
+            {
+                outFrame[i][j].B = det_A/tr_A;
+            }
+            else
+            {
+                outFrame[i][j].B = 0;
+            }
+
+            // search for the pixel with the highest value
+            if (outFrame[i][j].B > maxPixel)
+            {
+                maxPixel = outFrame[i][j].B;
+                max_i = i;
+                max_j = j;
+            }
+        }
+    }
+    
+    // normalization
+    for (int i = 1; i < rows - 1; i++)
+    {
+        for (int j = 1; j < cols - 1; j++)
+        {
+            outFrame[i][j].B = outFrame[i][j].B/maxPixel*255;
+            outFrame[i][j].G = outFrame[i][j].B;
+            outFrame[i][j].R = outFrame[i][j].B;
+        }
+    }
+
+    // draw max pixel
+    inFrame[max_i][max_j].B = 0;
+    inFrame[max_i][max_j].G = 0;
+    inFrame[max_i][max_j].R = 255;
+
+    // replace return outFrame with return inFrame in order to see the max pixel
+    // in the original image
+    return outFrame;
+}
+
+int main()
+{
+    namedWindow("input" , CV_WINDOW_NORMAL);
+    namedWindow("output", CV_WINDOW_NORMAL);
+
+    string       inFileName = "C:\\Users\\Nikola\\Desktop\\Chicago2.mp4";
+    VideoCapture inVideo    = VideoCapture(inFileName.c_str());
+
+    Mat frame;
+
+    while(1)
+    {
+        inVideo >> frame;
+
+        imshow("input" , frame);
+
+        vector< vector<BGR> > inVec;
+        inVec.resize(frame.rows, vector<BGR>(frame.cols));
+
+        for (int i = 0; i < frame.rows; i++)
+        {
+            for (int j = 0; j < frame.cols; j++)
+            {
+                BGR pixel;
+
+                pixel.B = frame.data[frame.step[0]*i + frame.step[1]*j + 0];
+                pixel.G = frame.data[frame.step[0]*i + frame.step[1]*j + 1];
+                pixel.R = frame.data[frame.step[0]*i + frame.step[1]*j + 2];
+
+                inVec[i][j] = pixel;
+            }
+        }
+
+        inVec = grayScale  (inVec);
+        inVec = response   (inVec);
+
+        for (int i = 0; i < frame.rows; i++)
+        {
+            for (int j = 0; j < frame.cols; j++)
+            {
+                BGR pixel2 = inVec[i][j];
+
+                frame.data[frame.step[0]*i + frame.step[1]*j + 0] = pixel2.B;
+                frame.data[frame.step[0]*i + frame.step[1]*j + 1] = pixel2.G;
+                frame.data[frame.step[0]*i + frame.step[1]*j + 2] = pixel2.R;
+            }
+        }
+
+        inVec.clear();
+
+        imshow("output", frame);
+
+        char c = cvWaitKey(33);
+        if (c == 27) break;
+    }
+
+    return 0;
+}
