@@ -16,6 +16,7 @@ struct BGR
     float R;
 };
 
+// this struct is needed to sort anchors
 struct AnchorList
 {
     int value;
@@ -50,6 +51,8 @@ vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
     return output;
 }
 
+// smoothing filter using two masks
+// this filter ensures that we get 'nice' derivatives later
 vector< vector<BGR> > gaussianFilter(vector< vector<BGR> >& input)
 {
     int rows = input.size();
@@ -57,6 +60,7 @@ vector< vector<BGR> > gaussianFilter(vector< vector<BGR> >& input)
 
     vector< vector<BGR> > output = input;
 
+    // horizontal mask, the values are obtained from a gaussian mask after normalization
     for (int i = 0; i < rows; i++)
     {
         for (int j = 3; j < cols - 3; j++)
@@ -71,6 +75,7 @@ vector< vector<BGR> > gaussianFilter(vector< vector<BGR> >& input)
         }
     }
 
+    // vertical gaussian mask, same as above
     for (int i = 3; i < rows - 3; i++)
     {
         for (int j = 0; j < cols; j++)
@@ -88,6 +93,7 @@ vector< vector<BGR> > gaussianFilter(vector< vector<BGR> >& input)
     return output;
 }
 
+// applies the prewitt derivative
 vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
 {
     int rows = input.size();
@@ -99,6 +105,8 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
     vector< vector<BGR> > Gx    (rows, vector<BGR>(cols));
     vector< vector<BGR> > Gy    (rows, vector<BGR>(cols));
 
+    // we apply the horizontal masks, [-1, 0, 1] (derivative mask for x) and
+    // [1, 1, 1] (averaging mask for y)
     for (int i = 0; i < rows; i++)
     {
         for (int j = 1; j < cols - 1; j++)
@@ -109,6 +117,9 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
         }
     }
 
+    // we now take the previous results and apply the vertical masks, [1; 1; 1] (averaging mask for x) and
+    // [-1; 0; 1] (derivative mask for y)
+    // this results in the x and y gradients, Gx and Gy
     for (int i = 1; i < rows - 1; i++)
     {
         for (int j = 0; j < cols; j++)
@@ -119,6 +130,7 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
         }
     }
 
+    // calculate the gradient magnitude
     if (control == "magnitude")
     {
         for (int i = 0; i < rows; i++)
@@ -134,12 +146,17 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
             }
         }
     }
+    // calculate the gradient direction in degrees
+    // only vertical and horizontal angles are distinguished
     else if (control == "direction")
     {
         for (int i = 0; i < rows; i++)
         {
             for (int j = 0; j < cols; j++)
             {
+                // if the gradient is stronger along the x direction, then we have a vertical edge
+                // similarly for the y direction, we have a horizontal edge
+                // (angles are measured from the horizontal)
                 if (Gx[i][j].B >= Gy[i][j].B)
                 {
                     output[i][j].B = 90;  //90 degrees
@@ -168,8 +185,16 @@ vector< vector<BGR> > extractAnchors(vector< vector<BGR> >& input,
     {
         for (int j = 1; j < cols - 1; j++)
         {
+            // we use non-maximum suppression to extract the anchors.
+            // this means that we only take those maxima which are 'peaks'
+            // in the intensity map. Taking ordianry maxima is not enough due
+            // to the existence of saddle-points.
             if (directionMap[i][j].B == 90)
             {
+                // in this case, we have a vertical edge, so we need to make sure that
+                // the point in question is the highest in the vertical direction. So if it
+                // is less than either the neighbor above or below it, it is suppressed, and if not
+                // it is kept.
                 if (magnitudeMap[i][j].B < magnitudeMap[i + 1][j].B ||
                     magnitudeMap[i][j].B < magnitudeMap[i - 1][j].B)
                 {
@@ -181,6 +206,8 @@ vector< vector<BGR> > extractAnchors(vector< vector<BGR> >& input,
                 }
             }
 
+            // this is the same as above except for horizontal edges, which are
+            // compared to their left and right-hand neighbors.
             if (directionMap[i][j].B == 0)
             {
                 if (magnitudeMap[i][j].B < magnitudeMap[i][j + 1].B ||
@@ -199,6 +226,8 @@ vector< vector<BGR> > extractAnchors(vector< vector<BGR> >& input,
     return output;
 }
 
+// this funciton connects the anchors into single-line edges.
+// it's still not finished, as we have yet to incorporate edege-validation.
 vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
                                     vector< vector<BGR> >& magnitudeMap,
                                     vector< vector<BGR> >& directionMap)
@@ -399,6 +428,9 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
 
     return edgeMap;
 }
+
+// once we have extracted the edges, we will apply a circular arc detection algorithm
+// and then use that to get the x-y locations of balls in the image.
 
 int main()
 {
