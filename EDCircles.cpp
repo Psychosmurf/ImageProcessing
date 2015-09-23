@@ -27,6 +27,16 @@ struct AnchorList
     AnchorList *prev;
 };
 
+struct EdgePixel
+{
+	int value;
+	int lineLength;
+	float minVal;
+
+	EdgePixel *left;  // or up
+	EdgePixel *right; // or down
+};
+
 vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
 {
     int rows = input.size();
@@ -226,6 +236,77 @@ vector< vector<BGR> > extractAnchors(vector< vector<BGR> >& input,
     return output;
 }
 
+float calc_M(vector< vector<BGR> >& magnitudeMap)
+{
+	int rows = magnitudeMap.size();
+	int cols = magnitudeMap[0].size();
+	
+	int M = 0;
+
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < cols; j++)
+		{
+			if (magnitudeMap[i][j].B != 0)
+			{
+				++M;
+			}
+		}
+	}
+
+	return M;
+}
+
+vector<float> get_empCumDist(vector< vector<BGR> >& magnitudeMap)
+{
+	vector<float> output(256);
+
+	int rows = magnitudeMap.size();
+	int cols = magnitudeMap[0].size();
+
+	float M = calc_M(magnitudeMap);
+
+	output[0] = rows*cols;
+
+	for (int k = 1; k < 256; k++)
+	{
+		output[k] = 0;
+
+		for (int i = 0; i < rows; i++)
+		{
+			for (int j = 0; j < cols; j++)
+			{
+				if (magnitudeMap[i][j].B >= k)
+				{
+					output[k] = output[k] + 1;
+				}
+			}
+		}
+
+		output[k] = output[k]/M;
+	}
+
+	return output;
+}
+
+vector< vector<BGR> > convertEdgePixelToBGR(vector< vector<EdgePixel> >& input)
+{
+	int rows = input.size();
+	int cols = input[0].size();
+
+	vector< vector<BGR> > output(rows, vector<BGR>(cols));
+
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < cols; j++)
+		{
+			output[i][j].B = input[i][j].value;
+		}
+	}
+
+	return output;
+}
+
 // this funciton connects the anchors into single-line edges.
 // it's still not finished, as we have yet to incorporate edege-validation.
 vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
@@ -235,7 +316,7 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
     int rows = input.size();
     int cols = input[0].size();
 
-    vector< vector<BGR> > edgeMap(rows, vector<BGR>(cols));
+    vector< vector<EdgePixel> > edgeMap(rows, vector<EdgePixel>(cols));
 
     AnchorList *anchorList = new AnchorList;
                 anchorList -> next = NULL;
@@ -244,18 +325,14 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
                 anchorList -> i = -1;
                 anchorList -> j = -1;
 
-    int anchorCount = 0;
-
     for (int i = 0; i < rows; i++)
     {
         for (int j = 0; j < cols; j++)
         {
-            edgeMap[i][j].B = 0;
+            edgeMap[i][j].value = 0;
 
             if (input[i][j].B != 0)
             {
-                ++anchorCount;
-
                 AnchorList* newAnchor = new AnchorList;
                             newAnchor -> value = input[i][j].B;
                             newAnchor -> i     = i;
@@ -294,123 +371,198 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
         }
     }
 
-    cout << "anchors in anchorMap = " << anchorCount << "\n";
-
-    anchorCount = 0;
-
     AnchorList *topOfList = anchorList;
+
+    vector< vector<int> > edgeHead(1, vector<int>(2));
+
+    int numEdgeHeads = 0;
 
     while (anchorList -> next != NULL)
     {
-        ++anchorCount;
-
         int x = anchorList -> i;
         int y = anchorList -> j;
 
-        while (magnitudeMap[x][y].B >    0 &&
-               directionMap[x][y].B ==  90 &&
-               edgeMap     [x][y].B != 255)
-        {
-            edgeMap[anchorList -> i][anchorList -> j].B = 255;
+	int prevX;
+	int prevY;
 
-            if (magnitudeMap[x - 1][y - 1].B > magnitudeMap[  x  ][y - 1].B &&
-                magnitudeMap[x - 1][y - 1].B > magnitudeMap[x + 1][y - 1].B)
-            {
-                x = x - 1;
-                y = y - 1;
-            }
-            else if (magnitudeMap[  x  ][y - 1].B > magnitudeMap[x - 1][y - 1].B &&
-                     magnitudeMap[  x  ][y - 1].B > magnitudeMap[x + 1][y - 1].B)
-            {
-                y = y - 1;
-            }
-            else
-            {
-                x = x + 1;
-                y = y - 1;
-            }
-        }
+	if (directionMap[x][y].B == 90)
+	{
+	 	++numEdgeHeads;
 
-        x = anchorList -> i;
-        y = anchorList -> j;
+		edgeHead.resize(numEdgeHeads, vector<int>(2));
 
-        while (magnitudeMap[x][y].B >    0 &&
-               directionMap[x][y].B ==  90 &&
-               edgeMap     [x][y].B != 255)
-        {
-            edgeMap[anchorList -> i][anchorList -> j].B = 255;
+		edgeHead[numEdgeHeads - 1][0] = x;
+		edgeHead[numEdgeHeads - 1][1] = y;
 
-            if (magnitudeMap[x - 1][y + 1].B > magnitudeMap[  x  ][y + 1].B &&
-                magnitudeMap[x - 1][y + 1].B > magnitudeMap[x + 1][y + 1].B)
-            {
-                x = x - 1;
-                y = y + 1;
-            }
-            else if (magnitudeMap[  x  ][y + 1].B > magnitudeMap[x - 1][y + 1].B &&
-                     magnitudeMap[  x  ][y + 1].B > magnitudeMap[x + 1][y + 1].B)
-            {
-                y = y + 1;
-            }
-            else
-            {
-                x = x + 1;
-                y = y + 1;
-            }
-        }
+		edgeMap[anchorList -> i][anchorList -> j].lineLength = 1;
+		edgeMap[anchorList -> i][anchorList -> j].minVal     = 10000;
 
-        x = anchorList -> i;
-        y = anchorList -> j;
+		// go left
+        	while (magnitudeMap[x][y].B      >   0 &&
+               	       directionMap[x][y].B     ==  90 &&
+               	       edgeMap     [x][y].value != 255)
+        	{
+            		edgeMap[x][y].value = 255;
 
-        while (magnitudeMap[x][y].B >    0 &&
-               directionMap[x][y].B ==   0 &&
-               edgeMap     [x][y].B != 255)
-        {
-            edgeMap[anchorList -> i][anchorList -> j].B = 255;
+			if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+			{
+				edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+			}
 
-            if (magnitudeMap[x - 1][y - 1].B > magnitudeMap[x - 1][  y  ].B &&
-                magnitudeMap[x - 1][y - 1].B > magnitudeMap[x - 1][y + 1].B)
-            {
-                x = x - 1;
-                y = y - 1;
-            }
-            else if (magnitudeMap[x - 1][  y  ].B > magnitudeMap[x - 1][y - 1].B &&
-                     magnitudeMap[x - 1][  y  ].B > magnitudeMap[x - 1][y + 1].B)
-            {
-                x = x - 1;
-            }
-            else
-            {
-                x = x - 1;
-                y = y + 1;
-            }
-        }
+			prevX = x;
+			prevY = y;
 
-        x = anchorList -> i;
-        y = anchorList -> j;
+            		if (magnitudeMap[x - 1][y - 1].B > magnitudeMap[  x  ][y - 1].B &&
+                	    magnitudeMap[x - 1][y - 1].B > magnitudeMap[x + 1][y - 1].B)
+            		{
+                		 x = x - 1;
+                		 y = y - 1;
+            		}
+            		else if (magnitudeMap[  x  ][y - 1].B > magnitudeMap[x - 1][y - 1].B &&
+                                 magnitudeMap[  x  ][y - 1].B > magnitudeMap[x + 1][y - 1].B)
+            		{
+                		 y = y - 1;
+            		}
+            		else
+            		{
+                		 x = x + 1;
+                		 y = y - 1;
+            		}
 
-        while (magnitudeMap[x][y].B >    0 &&
-               directionMap[x][y].B ==   0 &&
-               edgeMap     [x][y].B != 255)
-        {
-            edgeMap[anchorList -> i][anchorList -> j].B = 255;
+			edgeMap[prevX][prevY].left = &edgeMap[x][y];
+			
+			++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+        	}
 
-            if (magnitudeMap[x + 1][y - 1].B > magnitudeMap[x + 1][  y  ].B &&
-                magnitudeMap[x + 1][y - 1].B > magnitudeMap[x + 1][y + 1].B)
-            {
-                x = x + 1;
-                y = y - 1;
-            }
-            else if (magnitudeMap[x + 1][  y  ].B > magnitudeMap[x + 1][y - 1].B &&
-                     magnitudeMap[x + 1][  y  ].B > magnitudeMap[x + 1][y + 1].B)
-            {
-                x = x + 1;
-            }
-            else
-            {
-                x = x + 1;
-                y = y + 1;
-            }
-        }
+        	x = anchorList -> i;
+        	y = anchorList -> j;
+
+		// go right
+        	while (magnitudeMap[x][y].B      >   0 &&
+               	       directionMap[x][y].B     ==  90 &&
+               	       edgeMap     [x][y].value != 255)
+        	{
+            		edgeMap[x][y].value = 255;
+
+			if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+			{
+				edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+			}
+
+			prevX = x;
+			prevY = y;
+
+            		if (magnitudeMap[x - 1][y + 1].B > magnitudeMap[  x  ][y + 1].B &&
+                	    magnitudeMap[x - 1][y + 1].B > magnitudeMap[x + 1][y + 1].B)
+            		{
+                		 x = x - 1;
+                		 y = y + 1;
+            		}
+            		else if (magnitudeMap[  x  ][y + 1].B > magnitudeMap[x - 1][y + 1].B &&
+                    	         magnitudeMap[  x  ][y + 1].B > magnitudeMap[x + 1][y + 1].B)
+            		{
+                		 y = y + 1;
+            		}
+            		else
+            		{
+                		 x = x + 1;
+                		 y = y + 1;
+            		}
+
+			edgeMap[prevX][prevY].right = &edgeMap[x][y];
+			
+			++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+        	}
+	}
+	else
+	{
+		++numEdgeHeads;
+
+		edgeHead.resize(numEdgeHeads, vector<int>(2));
+
+		edgeHead[numEdgeHeads - 1][0] = x;
+		edgeHead[numEdgeHeads - 1][1] = y;
+
+		edgeMap[anchorList -> i][anchorList -> j].lineLength = 1;
+		edgeMap[anchorList -> i][anchorList -> j].minVal     = 10000;
+
+		// go up
+        	while (magnitudeMap[x][y].B      >   0 &&
+             	       directionMap[x][y].B     ==   0 &&
+               	       edgeMap     [x][y].value != 255)
+        	{
+            		edgeMap[x][y].value = 255;
+
+			if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+			{
+				edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+			}
+
+			prevX = x;
+			prevY = y;
+
+            		if (magnitudeMap[x - 1][y - 1].B > magnitudeMap[x - 1][  y  ].B &&
+                	    magnitudeMap[x - 1][y - 1].B > magnitudeMap[x - 1][y + 1].B)
+            		{
+                		 x = x - 1;
+               		         y = y - 1;
+            		}
+            		else if (magnitudeMap[x - 1][  y  ].B > magnitudeMap[x - 1][y - 1].B &&
+                       		 magnitudeMap[x - 1][  y  ].B > magnitudeMap[x - 1][y + 1].B)
+            		{
+                		 x = x - 1;
+            		}
+            		else
+            		{
+                		 x = x - 1;
+                		 y = y + 1;
+            		}
+			
+			edgeMap[prevX][prevY].left = &edgeMap[x][y];
+
+			++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+		}
+
+        	x = anchorList -> i;
+        	y = anchorList -> j;
+
+		// go down
+        	while (magnitudeMap[x][y].B      >   0 &&
+              	       directionMap[x][y].B     ==   0 &&
+               	       edgeMap     [x][y].value != 255)
+        	{
+            		edgeMap[x][y].value = 255;
+
+			if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+			{
+				edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+			}
+
+			prevX = x;
+			prevY = y;
+
+            		if (magnitudeMap[x + 1][y - 1].B > magnitudeMap[x + 1][  y  ].B &&
+                	    magnitudeMap[x + 1][y - 1].B > magnitudeMap[x + 1][y + 1].B)
+            		{
+                		 x = x + 1;
+                		 y = y - 1;
+            		}
+            		else if (magnitudeMap[x + 1][  y  ].B > magnitudeMap[x + 1][y - 1].B &&
+                    		 magnitudeMap[x + 1][  y  ].B > magnitudeMap[x + 1][y + 1].B)
+            		{
+               			 x = x + 1;
+            		}
+            		else
+            		{
+               			 x = x + 1;
+               			 y = y + 1;
+            		}
+
+			edgeMap[prevX][prevY].right = &edgeMap[x][y];
+
+			++edgeMap[anchorList -> i][anchorList -> j].lineLegnth;
+        	}
+	}
 
         anchorList = anchorList -> next;
     }
@@ -424,9 +576,11 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
         delete current;
     }
 
-    cout << "anchors in edgeMap = " << anchorCount << "\n";
+    vector< vector<BGR> > edgeMapBGR;
 
-    return edgeMap;
+    edgeMapBGR = convertEdgePixelToBGR(edgeMap);
+
+    return edgeMapBGR;
 }
 
 // once we have extracted the edges, we will apply a circular arc detection algorithm
@@ -437,7 +591,7 @@ int main()
     namedWindow("input" , CV_WINDOW_NORMAL);
     namedWindow("output", CV_WINDOW_NORMAL);
 
-    string       inFileName = "/home/nikola/Videos/bouncyBalls.mp4";
+    string       inFileName = "/home/nikola/Desktop/ImageProcessing/Resources/bouncyBalls.flv";
     VideoCapture inVideo    = VideoCapture(inFileName.c_str());
 
     Mat frame;
