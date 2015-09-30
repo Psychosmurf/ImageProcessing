@@ -405,9 +405,9 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
             {
                 edgeMap[x][y].value = 255;
 
-                if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
                 {
-                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
                 }//if
 
                 prevX = x;
@@ -445,9 +445,9 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
             {
                 edgeMap[x][y].value = 255;
 
-                if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
                 {
-                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
                 }//if
 
                 prevX = x;
@@ -494,9 +494,9 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
             {
                 edgeMap[x][y].value = 255;
 
-                if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
                 {
-                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
                 }//if
 
                 prevX = x;
@@ -516,7 +516,7 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
                 else
                 {
                     x = x - 1;
-                    = y + 1;
+                    y = y + 1;
                 }//else
 
                 edgeMap[prevX][prevY].left = &edgeMap[x][y];
@@ -534,9 +534,9 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
             {
                 edgeMap[x][y].value = 255;
 
-                if (magnitudeMap[i][j].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
                 {
-                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[i][j].B;
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
                 }//if
 
                 prevX = x;
@@ -561,7 +561,7 @@ vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
 
                 edgeMap[prevX][prevY].right = &edgeMap[x][y];
 
-                ++edgeMap[anchorList -> i][anchorList -> j].lineLegnth;
+                ++edgeMap[anchorList -> i][anchorList -> j].lineLength;
             }//while
         }//else
     }//while
@@ -592,7 +592,7 @@ int main()
     namedWindow("input" , CV_WINDOW_NORMAL);
     namedWindow("output", CV_WINDOW_NORMAL);
 
-    string       inFileName = "/home/nikola/Desktop/ImageProcessing/Resources/bouncyBalls.flv";
+    string       inFileName = "/home/nikola/bouncyBalls.flv";
     VideoCapture inVideo    = VideoCapture(inFileName.c_str());
 
     Mat frame;
@@ -623,7 +623,7 @@ int main()
         vector< vector<BGR> > directionMap = prewittOp(inVec, "direction");
 
         inVec = extractAnchors(inVec, magnitudeMap, directionMap);
-        inVec = createEdgeMap (inVec, magnitudeMap, directionMap);
+        //inVec = createEdgeMap (inVec, magnitudeMap, directionMap);
 
         for (int i = 0; i < frame.rows; i++)
         {
