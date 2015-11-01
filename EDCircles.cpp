@@ -6,9 +6,6 @@
 #include <algorithm>
 #include <cmath>
 
-#define MAGNITUDE "magnitude"
-#define DIRECTION "direction"
-
 using namespace cv;
 using namespace std;
 
@@ -19,45 +16,26 @@ struct BGR
     float R;
 };//struct BGR
 
-struct Anchor
+//this struct is needed to sort anchors
+struct AnchorList
 {
     int value;
-
     int i;
     int j;
 
-    bool isInEdge;
-};//struct Anchor
+    AnchorList *next;
+    AnchorList *prev;
+};//struct AnchorList
 
 struct EdgePixel
 {
-    Anchor     anchor;
+    int value;
+    int lineLength;
+    float minVal;
 
-    EdgePixel* next;  //right or up
-    EdgePixel* prev;  //left  or down
-
+    EdgePixel *left;  //or up
+    EdgePixel *right; //or down
 };//struct EdgePixel
-
-const float NORMALIZE_GRAYSCALE = 1.0/3.0;
-
-//Gaussian filter normalized terms
-const float GAUSS_TERM1 = 0.006;
-const float GAUSS_TERM2 = 0.061;
-const float GAUSS_TERM3 = 0.242;
-const float GAUSS_TERM4 = 0.383;
-
-//quantization error elimination threshold
-//for the Prewitt Operator
-const float QUANT_ERROR_ELIM_THRESH = 8.48;
-
-//angles
-const float VERTICAL   = 90;
-const float HORIZONTAL = 0;
-
-const int   NUM_PIXEL_VALUES = 256;
-
-const int   TIME_TO_WAIT_FOR_INPUT = 1; //set to 0 for infinite
-const char  ESC_KEY_CODE           = char(27);
 
 vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
 {
@@ -72,9 +50,7 @@ vector< vector<BGR> > grayScale(vector< vector<BGR> >& input)
         {
             BGR pixel;
 
-            pixel.B = NORMALIZE_GRAYSCALE*(input[i][j].R +
-                                           input[i][j].G +
-                                           input[i][j].B);
+            pixel.B = (float(1)/float(3))*(input[i][j].R + input[i][j].G + input[i][j].B);
             pixel.G = pixel.B;
             pixel.R = pixel.B;
 
@@ -94,19 +70,18 @@ vector< vector<BGR> > gaussianFilter(vector< vector<BGR> >& input)
 
     vector< vector<BGR> > output = input;
 
-    //horizontal mask, the values are obtained from
-    //a gaussian mask after normalization
+    //horizontal mask, the values are obtained from a gaussian mask after normalization
     for (int i = 0; i < rows; i++)
     {
         for (int j = 3; j < cols - 3; j++)
         {
-            output[i][j].B = GAUSS_TERM1*input[i][j - 3].B
-                            +GAUSS_TERM2*input[i][j - 2].B
-                            +GAUSS_TERM3*input[i][j - 1].B
-                            +GAUSS_TERM4*input[i][  j  ].B
-                            +GAUSS_TERM3*input[i][j + 1].B
-                            +GAUSS_TERM2*input[i][j + 2].B
-                            +GAUSS_TERM1*input[i][j + 3].B;
+            output[i][j].B = 0.006*input[i][j - 3].B
+                            +0.061*input[i][j - 2].B
+                            +0.242*input[i][j - 1].B
+                            +0.383*input[i][  j  ].B
+                            +0.242*input[i][j + 1].B
+                            +0.061*input[i][j + 2].B
+                            +0.006*input[i][j + 3].B;
         }//for
     }//for
 
@@ -115,13 +90,13 @@ vector< vector<BGR> > gaussianFilter(vector< vector<BGR> >& input)
     {
         for (int j = 0; j < cols; j++)
         {
-            output[i][j].B = GAUSS_TERM1*input[i - 3][j].B
-                            +GAUSS_TERM2*input[i - 2][j].B
-                            +GAUSS_TERM3*input[i - 1][j].B
-                            +GAUSS_TERM4*input[  i  ][j].B
-                            +GAUSS_TERM3*input[i + 1][j].B
-                            +GAUSS_TERM2*input[i + 2][j].B
-                            +GAUSS_TERM1*input[i + 3][j].B;
+            output[i][j].B = 0.006*input[i - 3][j].B
+                            +0.061*input[i - 2][j].B
+                            +0.242*input[i - 1][j].B
+                            +0.383*input[  i  ][j].B
+                            +0.242*input[i + 1][j].B
+                            +0.061*input[i + 2][j].B
+                            +0.006*input[i + 3][j].B;
         }//for
     }//for
 
@@ -146,33 +121,27 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
     {
         for (int j = 1; j < cols - 1; j++)
         {
-            temp_x[i][j].B = -1*input[i][j - 1].B +
-                                input[i][j + 1].B;
+            temp_x[i][j].B = -1*input[i][j - 1].B + input[i][j + 1].B;
 
-            temp_y[i][j].B = input[i][j - 1].B +
-                             input[i][  j  ].B +
-                             input[i][j + 1].B;
+            temp_y[i][j].B = input[i][j - 1].B + input[i][j].B + input[i][j + 1].B;
         }//for
     }//for
 
-    //we now take the previous results and apply the vertical masks,
-    //[1; 1; 1] (averaging mask for x) and
+    //we now take the previous results and apply the vertical masks, [1; 1; 1] (averaging mask for x) and
     //[-1; 0; 1] (derivative mask for y)
     //this results in the x and y gradients, Gx and Gy
     for (int i = 1; i < rows - 1; i++)
     {
         for (int j = 0; j < cols; j++)
         {
-            Gx[i][j].B = temp_x[i - 1][j].B +
-                         temp_x[  i  ][j].B +
-                         temp_x[i + 1][j].B;
+            Gx[i][j].B = temp_x[i - 1][j].B + temp_x[i][j].B + temp_x[i + 1][j].B;
 
             Gy[i][j].B = -1*temp_y[i - 1][j].B + temp_y[i + 1][j].B;
         }//for
     }//for
 
     //calculate the gradient magnitude
-    if (control == MAGNITUDE)
+    if (control == "magnitude")
     {
         for (int i = 0; i < rows; i++)
         {
@@ -180,7 +149,7 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
             {
                 output[i][j].B = abs(Gx[i][j].B) + abs(Gy[i][j].B);
 
-                if (output[i][j].B < QUANT_ERROR_ELIM_THRESH)
+                if (output[i][j].B < 8.48)  //quantization error elimination threshold for the prewitt operator
                 {
                     output[i][j].B = 0;
                 }//if
@@ -190,23 +159,22 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
 
     //calculate the gradient direction in degrees
     //only vertical and horizontal angles are distinguished
-    else if (control == DIRECTION)
+    else if (control == "direction")
     {
         for (int i = 0; i < rows; i++)
         {
             for (int j = 0; j < cols; j++)
             {
-                //if the gradient is stronger along the x direction,
-                //then we have a vertical edge
+                //if the gradient is stronger along the x direction, then we have a vertical edge
                 //similarly for the y direction, we have a horizontal edge
                 //(angles are measured from the horizontal)
                 if (Gx[i][j].B >= Gy[i][j].B)
                 {
-                    output[i][j].B = VERTICAL;
+                    output[i][j].B = 90;  //90 degrees
                 }//if
                 else
                 {
-                    output[i][j].B = HORIZONTAL;
+                    output[i][j].B = 0;
                 }//else
             }//for
         }//for
@@ -215,14 +183,14 @@ vector< vector<BGR> > prewittOp(vector< vector<BGR> >& input, string control)
     return output;
 }//prewittOp
 
-vector< vector<Anchor> > extractAnchors(vector< vector<BGR> >& input,
-                                        vector< vector<BGR> >& magnitudeMap,
-                                        vector< vector<BGR> >& directionMap)
+vector< vector<BGR> > extractAnchors(vector< vector<BGR> >& input,
+                                     vector< vector<BGR> >& magnitudeMap,
+                                     vector< vector<BGR> >& directionMap)
 {
     int rows = input.size();
     int cols = input[0].size();
 
-    vector< vector<Anchor> > output(rows, vector<Anchor>(cols));
+    vector< vector<BGR> > output(rows, vector<BGR>(cols));
 
     for (int i = 1; i < rows - 1; i++)
     {
@@ -232,49 +200,35 @@ vector< vector<Anchor> > extractAnchors(vector< vector<BGR> >& input,
             //this means that we only take those maxima which are 'peaks'
             //in the intensity map. Taking ordianry maxima is not enough due
             //to the existence of saddle-points.
-            if (directionMap[i][j].B == VERTICAL)
+            if (directionMap[i][j].B == 90)
             {
-                // in this case, we have a vertical edge,
-                // so we need to make sure that
-                // the point in question is the highest in the vertical
-                // direction. So if it
-                // is less than either the neighbor above or below it,
-                // it is suppressed, and if not it is kept.
+                // in this case, we have a vertical edge, so we need to make sure that
+                // the point in question is the highest in the vertical direction. So if it
+                // is less than either the neighbor above or below it, it is suppressed, and if not
+                // it is kept.
                 if (magnitudeMap[i][j].B < magnitudeMap[i + 1][j].B ||
                     magnitudeMap[i][j].B < magnitudeMap[i - 1][j].B)
                 {
-                    output[i][j].value    = 0;
-                    output[i][j].i        = i;
-                    output[i][j].j        = j;
-                    output[i][j].isInEdge = false;
+                    output[i][j].B = 0;
                 }//if
                 else
                 {
-                    output[i][j].value    = magnitudeMap[i][j].B;
-                    output[i][j].i        = i;
-                    output[i][j].j        = j;
-                    output[i][j].isInEdge = false;
+                    output[i][j].B = magnitudeMap[i][j].B;
                 }//else
             }//if
 
             //this is the same as above except for horizontal edges, which are
             //compared to their left and right-hand neighbors.
-            if (directionMap[i][j].B == HORIZONTAL)
+            if (directionMap[i][j].B == 0)
             {
                 if (magnitudeMap[i][j].B < magnitudeMap[i][j + 1].B ||
                     magnitudeMap[i][j].B < magnitudeMap[i][j - 1].B)
                 {
-                    output[i][j].value    = 0;
-                    output[i][j].i        = i;
-                    output[i][j].j        = j;
-                    output[i][j].isInEdge = false;
+                    output[i][j].B = 0;
                 }//if
                 else
                 {
-                    output[i][j].value    = magnitudeMap[i][j].B;
-                    output[i][j].i        = i;
-                    output[i][j].j        = j;
-                    output[i][j].isInEdge = false;
+                    output[i][j].B = magnitudeMap[i][j].B;
                 }//else
             }//if
         }//for
@@ -283,27 +237,7 @@ vector< vector<Anchor> > extractAnchors(vector< vector<BGR> >& input,
     return output;
 }//extractAnchors
 
-vector< vector<BGR> > convertAnchorToBGR(vector< vector<Anchor> >& anchorMap)
-{
-    int rows = anchorMap.size();
-    int cols = anchorMap[0].size();
-
-    vector< vector<BGR> > output(rows, vector<BGR>(cols));
-
-    for (int i = 0; i < rows; i++)
-    {
-        for (int j = 0; j < cols; j++)
-        {
-            output[i][j].B = anchorMap[i][j].value;
-        }//for
-    }//for
-
-    return output;
-}//convertAnchorToBGR
-
-//M is simply the number of non-zero valued pixels in the
-//magnitude map
-float getM(vector< vector<BGR> >& magnitudeMap)
+float calc_M(vector< vector<BGR> >& magnitudeMap)
 {
     int rows = magnitudeMap.size();
     int cols = magnitudeMap[0].size();
@@ -322,25 +256,20 @@ float getM(vector< vector<BGR> >& magnitudeMap)
     }//for
 
     return float(M);
-}//getM
+}//calc_M
 
-//The empircal cumulative distribution is a function H(mu), where mu
-//is the minimum value of a pixel on an edge, and the value H is given by
-//the number of pixels in the magnitude map with values greater than or equal
-//to mu. The function is represented here as a vector. This reduces an O(n)
-//operation to O(1).
-vector<float> getEmpCumDist(vector< vector<BGR> >& magnitudeMap)
+vector<float> get_empCumDist(vector< vector<BGR> >& magnitudeMap)
 {
-    vector<float> output(NUM_PIXEL_VALUES);
+    vector<float> output(256);
 
     int rows = magnitudeMap.size();
     int cols = magnitudeMap[0].size();
 
-    float M = getM(magnitudeMap);
+    float M = calc_M(magnitudeMap);
 
     output[0] = rows*cols;
 
-    for (int k = 1; k < NUM_PIXEL_VALUES; k++)
+    for (int k = 1; k < 256; k++)
     {
         output[k] = 0;
 
@@ -359,129 +288,311 @@ vector<float> getEmpCumDist(vector< vector<BGR> >& magnitudeMap)
     }//for
 
     return output;
-}//getEmpCumDist
+}//get_empCumDist
 
-//Takes all non-zero pixels in the anchor map and puts them in a list
-//to be sorted and accessed in order.
-vector<Anchor> getAnchorList(vector< vector<Anchor> >& anchorMap)
+vector< vector<BGR> > convertEdgePixelToBGR(vector< vector<EdgePixel> >& input)
 {
-    int rows     = anchorMap.size();
-    int cols     = anchorMap[0].size();
-    int listSize = 0;
+    int rows = input.size();
+    int cols = input[0].size();
 
-    vector<Anchor> anchorList(listSize);
+    vector< vector<BGR> > output(rows, vector<BGR>(cols));
 
     for (int i = 0; i < rows; i++)
     {
         for (int j = 0; j < cols; j++)
         {
-            if (anchorMap[i][j].isInEdge == false)
+            output[i][j].B = input[i][j].value;
+        }//for
+    }//for
+
+    return output;
+}//convertEdgePixelToBGR
+
+//this funciton connects the anchors into single-line edges.
+//it's still not finished, as we have yet to incorporate edege-validation.
+vector< vector<BGR> > createEdgeMap(vector< vector<BGR> >& input,
+                                    vector< vector<BGR> >& magnitudeMap,
+                                    vector< vector<BGR> >& directionMap)
+{
+    int rows = input.size();
+    int cols = input[0].size();
+
+    vector< vector<EdgePixel> > edgeMap(rows, vector<EdgePixel>(cols));
+
+    AnchorList *anchorList = new AnchorList;
+                anchorList -> next = NULL;
+                anchorList -> prev = NULL;
+                anchorList -> value = -1;
+                anchorList -> i = -1;
+                anchorList -> j = -1;
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            edgeMap[i][j].value = 0;
+
+            if (input[i][j].B != 0)
             {
-                ++listSize;
+                AnchorList* newAnchor = new AnchorList;
+                            newAnchor -> value = input[i][j].B;
+                            newAnchor -> i     = i;
+                            newAnchor -> j     = j;
+                            newAnchor -> next  = anchorList;
+                            newAnchor -> prev  = NULL;
 
-                anchorList.resize(listSize);
+                while (newAnchor -> value < newAnchor -> next -> value)
+                {
+                    newAnchor -> next = newAnchor -> next -> next;
+                }//while
 
-                anchorList[listSize - 1] = anchorMap[i][j];
+                if (newAnchor -> next -> next == NULL && newAnchor -> next -> prev == NULL)
+                {
+                    newAnchor -> next -> prev = newAnchor;
+                }//if
+                else if (newAnchor -> next -> next == NULL && newAnchor -> next -> prev != NULL)
+                {
+                    newAnchor -> next -> prev -> next = newAnchor;
+                    newAnchor -> prev = newAnchor -> next -> prev;
+                    newAnchor -> next -> prev = newAnchor;
+                }//else if
+                else
+                {
+                    newAnchor -> next = newAnchor -> next -> next;
+                    newAnchor -> prev = newAnchor -> next -> prev;
+                    newAnchor -> prev -> next = newAnchor;
+                    newAnchor -> next -> prev = newAnchor;
+                }//else
+
+                while (anchorList -> prev != NULL)
+                {
+                    anchorList = anchorList -> prev;
+                }//while
             }//if
         }//for
     }//for
 
-    return anchorList;
-}//getAnchorList
+    AnchorList *topOfList = anchorList;
 
-//Quicksort partition function. Needed for sortAnchorList(...)
-int partitionList(vector<Anchor>& anchorList, int l, int r)
-{
-    Anchor pivot;
-    Anchor temp;
+    vector< vector<int> > edgeHead(1, vector<int>(2));
 
-    pivot = anchorList[l];
+    int numEdgeHeads = 0;
 
-    int i = l; int j = r + 1;
-
-    while (1)
+    while (anchorList -> next != NULL)
     {
-        do ++i; while (anchorList[i].value <= pivot.value && i <= r);
-        do --j; while (anchorList[j].value >  pivot.value);
+        int x = anchorList -> i;
+        int y = anchorList -> j;
 
-        if (i >= j)
+        int prevX;
+        int prevY;
+
+        if (directionMap[x][y].B == 90)
         {
-            break;
-        }//if
+            ++numEdgeHeads;
 
-        temp          = anchorList[i];
-        anchorList[i] = anchorList[j];
-        anchorList[j] = temp;
+            edgeHead.resize(numEdgeHeads, vector<int>(2));
+
+            edgeHead[numEdgeHeads - 1][0] = x;
+            edgeHead[numEdgeHeads - 1][1] = y;
+
+            edgeMap[anchorList -> i][anchorList -> j].lineLength = 1;
+            edgeMap[anchorList -> i][anchorList -> j].minVal     = 10000;
+
+            // go left
+            while (magnitudeMap[x][y].B      >   0 &&
+                   directionMap[x][y].B     ==  90 &&
+                   edgeMap     [x][y].value != 255)
+            {
+                edgeMap[x][y].value = 255;
+
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                {
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
+                }//if
+
+                prevX = x;
+                prevY = y;
+
+                if (magnitudeMap[x - 1][y - 1].B > magnitudeMap[  x  ][y - 1].B &&
+                    magnitudeMap[x - 1][y - 1].B > magnitudeMap[x + 1][y - 1].B)
+                {
+                    x = x - 1;
+                    y = y - 1;
+                }//if
+                else if (magnitudeMap[  x  ][y - 1].B > magnitudeMap[x - 1][y - 1].B &&
+                         magnitudeMap[  x  ][y - 1].B > magnitudeMap[x + 1][y - 1].B)
+                {
+                    y = y - 1;
+                }//else if
+                else
+                {
+                    x = x + 1;
+                    y = y - 1;
+                }//else
+
+                edgeMap[prevX][prevY].left = &edgeMap[x][y];
+
+                ++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+            }//while
+
+            x = anchorList -> i;
+            y = anchorList -> j;
+
+            // go right
+            while (magnitudeMap[x][y].B      >   0 &&
+                   directionMap[x][y].B     ==  90 &&
+                   edgeMap     [x][y].value != 255)
+            {
+                edgeMap[x][y].value = 255;
+
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                {
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
+                }//if
+
+                prevX = x;
+                prevY = y;
+
+                if (magnitudeMap[x - 1][y + 1].B > magnitudeMap[  x  ][y + 1].B &&
+                    magnitudeMap[x - 1][y + 1].B > magnitudeMap[x + 1][y + 1].B)
+                {
+                    x = x - 1;
+                    y = y + 1;
+                }//if
+                else if (magnitudeMap[  x  ][y + 1].B > magnitudeMap[x - 1][y + 1].B &&
+                         magnitudeMap[  x  ][y + 1].B > magnitudeMap[x + 1][y + 1].B)
+                {
+                    y = y + 1;
+                }//else if
+                else
+                {
+                    x = x + 1;
+                    y = y + 1;
+                }//else
+
+                edgeMap[prevX][prevY].right = &edgeMap[x][y];
+
+                ++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+            }//while
+        }//if
+        else
+        {
+            ++numEdgeHeads;
+
+            edgeHead.resize(numEdgeHeads, vector<int>(2));
+
+            edgeHead[numEdgeHeads - 1][0] = x;
+            edgeHead[numEdgeHeads - 1][1] = y;
+
+            edgeMap[anchorList -> i][anchorList -> j].lineLength = 1;
+            edgeMap[anchorList -> i][anchorList -> j].minVal     = 10000;
+
+            // go up
+            while (magnitudeMap[x][y].B      >   0 &&
+                   directionMap[x][y].B     ==   0 &&
+                   edgeMap     [x][y].value != 255)
+            {
+                edgeMap[x][y].value = 255;
+
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                {
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
+                }//if
+
+                prevX = x;
+                prevY = y;
+
+                if (magnitudeMap[x - 1][y - 1].B > magnitudeMap[x - 1][  y  ].B &&
+                    magnitudeMap[x - 1][y - 1].B > magnitudeMap[x - 1][y + 1].B)
+                {
+                    x = x - 1;
+                    y = y - 1;
+                }//if
+                else if (magnitudeMap[x - 1][  y  ].B > magnitudeMap[x - 1][y - 1].B &&
+                         magnitudeMap[x - 1][  y  ].B > magnitudeMap[x - 1][y + 1].B)
+                {
+                    x = x - 1;
+                }//esle if
+                else
+                {
+                    x = x - 1;
+                    y = y + 1;
+                }//else
+
+                edgeMap[prevX][prevY].left = &edgeMap[x][y];
+
+                ++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+            }//while
+
+            x = anchorList -> i;
+            y = anchorList -> j;
+
+            // go down
+            while (magnitudeMap[x][y].B      >   0 &&
+                   directionMap[x][y].B     ==   0 &&
+                   edgeMap     [x][y].value != 255)
+            {
+                edgeMap[x][y].value = 255;
+
+                if (magnitudeMap[x][y].B < edgeMap[anchorList -> i][anchorList -> j].minVal)
+                {
+                    edgeMap[anchorList -> i][anchorList -> j].minVal = magnitudeMap[x][y].B;
+                }//if
+
+                prevX = x;
+                prevY = y;
+
+                if (magnitudeMap[x + 1][y - 1].B > magnitudeMap[x + 1][  y  ].B &&
+                    magnitudeMap[x + 1][y - 1].B > magnitudeMap[x + 1][y + 1].B)
+                {
+                    x = x + 1;
+                    y = y - 1;
+                }//if
+                else if (magnitudeMap[x + 1][  y  ].B > magnitudeMap[x + 1][y - 1].B &&
+                         magnitudeMap[x + 1][  y  ].B > magnitudeMap[x + 1][y + 1].B)
+                {
+                    x = x + 1;
+                }//else if
+                else
+                {
+                    x = x + 1;
+                    y = y + 1;
+                }//else
+
+                edgeMap[prevX][prevY].right = &edgeMap[x][y];
+
+                ++edgeMap[anchorList -> i][anchorList -> j].lineLength;
+            }//while
+        }//else
     }//while
 
-    temp          = anchorList[i];
-    anchorList[i] = anchorList[j];
-    anchorList[j] = temp;
+    anchorList = anchorList -> next;
 
-    return j;
-}//partionList
-
-//Sorts the anchors in the anchor list using quicksort
-vector<Anchor> sortAnchorList(vector<Anchor>& anchorList, int l, int r)
-{
-    int j;
-
-    if (l < r)
+    while (topOfList != NULL)
     {
-        j = partitionList(anchorList, l, r);
+        AnchorList* current = topOfList;
 
-        sortAnchorList(anchorList, l,     j - 1);
-        sortAnchorList(anchorList, j + 1, r    );
-    }//if
+        topOfList = topOfList -> next;
 
-    return anchorList;
-}//sortAnchorList
+        delete current;
+    }//while
 
-/*
-void connectAnchors(Anchor& anchor, vector<EdgePixel>& edgeList,
-                                    vector<BGR>&       magnitudeMap,
-                                    vector<BGR>&       directionMap)
-{
+    vector< vector<BGR> > edgeMapBGR;
 
-}//connectAnchors
+    edgeMapBGR = convertEdgePixelToBGR(edgeMap);
 
-*/
+    return edgeMapBGR;
+}//createEdgeMap
 
-vector<EdgePixel> getEdgeList(vector<Anchor>&           anchorList,
-                              vector< vector<BGR> >&    magnitudeMap,
-                              vector< vector<BGR> >&    directionMap,
-                              vector< vector<Anchor> >& achorMap)
-{
-    int length = anchorList.size();
-    int edgeListSize = 0;
-
-    vector<EdgePixel> edgeList(edgeListSize);
-
-    for (int i = 0; i < length; i++)
-    {
-        if (anchorList[i].isInEdge == false)
-        {
-            ++edgeListSize;
-
-            edgeList.resize(edgeListSize);
-
-            //connectAnchors(anchorList[i], edgeList, magnitudeMap, directionMap);
-        }
-    }
-
-    return edgeList;
-}//getEdgeList
-
-//once we have extracted the edges, we will apply a circular arc detection
-//algorithm
+//once we have extracted the edges, we will apply a circular arc detection algorithm
 //and then use that to get the x-y locations of balls in the image.
 
-int main(int argc, char** argv)
+int main()
 {
     namedWindow("input" , CV_WINDOW_NORMAL);
     namedWindow("output", CV_WINDOW_NORMAL);
 
-    string       inFileName = "/home/nikola/bouncyBalls.flv";
+    string       inFileName = "/home/nikola/Desktop/ImageProcessing/Resources/bouncyBalls.flv";
     VideoCapture inVideo    = VideoCapture(inFileName.c_str());
 
     Mat frame;
@@ -508,14 +619,11 @@ int main(int argc, char** argv)
         inVec = grayScale     (inVec);
         inVec = gaussianFilter(inVec);
 
-        vector< vector<BGR> > magnitudeMap = prewittOp(inVec, MAGNITUDE);
-        vector< vector<BGR> > directionMap = prewittOp(inVec, DIRECTION);
+        vector< vector<BGR> > magnitudeMap = prewittOp(inVec, "magnitude");
+        vector< vector<BGR> > directionMap = prewittOp(inVec, "direction");
 
-        vector< vector<Anchor> > anchorMap;
-        anchorMap = extractAnchors(inVec, magnitudeMap, directionMap);
-
-        inVec = convertAnchorToBGR(anchorMap);
-        //inVec = createEdgeMap (inVec, magnitudeMap, directionMap);
+        inVec = extractAnchors(inVec, magnitudeMap, directionMap);
+        inVec = createEdgeMap (inVec, magnitudeMap, directionMap);
 
         for (int i = 0; i < frame.rows; i++)
         {
@@ -535,8 +643,8 @@ int main(int argc, char** argv)
 
         imshow("output", frame);
 
-        char c = cvWaitKey(TIME_TO_WAIT_FOR_INPUT);
-        if (c == ESC_KEY_CODE) break;
+        char c = cvWaitKey(33);
+        if (c == 27) break;
     }//while
 
     return 0;
